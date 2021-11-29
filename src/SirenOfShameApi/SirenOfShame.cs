@@ -6,7 +6,9 @@ namespace SirenOfShameApi
 {
     /// <summary>
     /// Provides a simplified interface to the Siren of Shame API.
-    /// https://github.com/AutomatedArchitecture/sirenofshame-uwp-device-api
+    /// This wrapper is based on the 103 Firmware. http://sirenofshame.com/Firmware
+    ///
+    /// Based on the github project: https://github.com/AutomatedArchitecture/sirenofshame-uwp-device-api
     /// </summary>
     public class SirenOfShame 
     {
@@ -26,7 +28,7 @@ namespace SirenOfShameApi
                     : GetLightPattern(ledPattern);
             }
         }
-
+        
         // Connect to the Siren of Shame device, and starts listening if device is connected to computer or not.
         public void Connect()
         {
@@ -49,6 +51,24 @@ namespace SirenOfShameApi
             var lightPattern = GetLedPattern(pattern, Math.Min(intensity, 6));
             Console.Out.WriteLineAsync($"Playing light pattern \"{lightPattern.Name}\", Id:{lightPattern.Id}");
             _sirenOfShameDevice.PlayLightPattern(lightPattern, durationInSeconds > 0 ?  TimeSpan.FromSeconds(durationInSeconds) : null).Wait();
+        }
+
+        public void StopLight()
+        {
+            var p = GetLedPattern(LightSignal.Off);
+            _sirenOfShameDevice.PlayLightPattern(null, null).Wait();
+        }
+
+        // Will play a sad trombone once.
+        public void PlayAudio()
+        {
+            var sadTrombone = _sirenOfShameDevice.AudioPatterns.First();
+            _sirenOfShameDevice.PlayAudioPattern(sadTrombone,  TimeSpan.FromSeconds(5)).Wait();
+        }
+
+        public void StopAudio()
+        {
+            _sirenOfShameDevice.PlayAudioPattern(null, null).Wait();
         }
 
         private LedPattern GetLedPattern(LightSignal pattern, uint intensity = 0) =>
@@ -84,14 +104,8 @@ namespace SirenOfShameApi
                 >= 66 and <= 66+6 => new LightPattern(pattern.Id, LightSignal.MaxByte, pattern.Id - 66),
                 _ => new LightPattern(pattern.Id, LightSignal.Off, 0)
             };
-        
-        public void StopLight()
-        {
-            var p = GetLedPattern(LightSignal.Off);
-            _sirenOfShameDevice.PlayLightPattern(p, null).Wait();
-        }
 
-        private async void SirenOfShameDeviceOnConnected(object? sender, EventArgs e) => Connected?.Invoke(this, EventArgs.Empty);
+        private void SirenOfShameDeviceOnConnected(object? sender, EventArgs e) => Connected?.Invoke(this, EventArgs.Empty);
         private void SirenOfShameDeviceOnDisconnected(object? sender, EventArgs e) => Disconnected?.Invoke(this, EventArgs.Empty);
     }
     

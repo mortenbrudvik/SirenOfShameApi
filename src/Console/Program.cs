@@ -13,9 +13,11 @@ namespace Console
             await Task.Delay(1000);
             
             sirenOfShame.PlayLight(LightSignal.SOS);
+            sirenOfShame.PlayAudio();
             
             await Task.Delay(10000);
             
+            sirenOfShame.StopAudio();
             sirenOfShame.StopLight();
             sirenOfShame.Disconnect();
         }
