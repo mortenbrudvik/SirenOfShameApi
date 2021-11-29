@@ -12,7 +12,7 @@ namespace Console
 
             await Task.Delay(1000);
             
-            sirenOfShame.PlayLight(LightPattern.SOS);
+            sirenOfShame.PlayLight(LightSignal.SOS);
             
             await Task.Delay(10000);
             

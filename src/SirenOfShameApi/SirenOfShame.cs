@@ -11,15 +11,19 @@ namespace SirenOfShameApi
     public class SirenOfShame 
     {
         private readonly SirenOfShameDevice _sirenOfShameDevice = new();
-        private UsbInfoPacket _deviceInfo;
         
-        public SirenStatus Status
+        public event EventHandler Connected;
+        public event EventHandler Disconnected;
+        
+        public LightPattern LightStatus
         {
             get
             {
                 var deviceInfo = _sirenOfShameDevice.ReadDeviceInfo().Result;
-                var ledPatternName = _sirenOfShameDevice.LedPatterns.FirstOrDefault(x => x.Id == deviceInfo.LedMode)?.Name;
-                return new SirenStatus(deviceInfo.LedMode + "", ledPatternName, deviceInfo.LedPlayDuration);
+                var ledPattern = _sirenOfShameDevice.LedPatterns.FirstOrDefault(x => x.Id == deviceInfo.LedMode);
+                return ledPattern == null 
+                    ? new LightPattern(1, LightSignal.Off, 0) 
+                    : GetLightPattern(ledPattern);
             }
         }
 
@@ -35,60 +39,61 @@ namespace SirenOfShameApi
         {
             _sirenOfShameDevice.Connected -= SirenOfShameDeviceOnConnected;
             _sirenOfShameDevice.Disconnected -= SirenOfShameDeviceOnDisconnected;
+            StopLight();
             _sirenOfShameDevice.Dispose();
         }
 
         // intensity is 0-6 for all patterns except SOS 
-        public void PlayLight(LightPattern pattern, uint intensity = 0, uint durationInSeconds = 0)
+        public void PlayLight(LightSignal pattern, uint intensity = 0, uint durationInSeconds = 0)
         {
-            var lightPattern = GetLightPattern(pattern, Math.Min(intensity, 6));
+            var lightPattern = GetLedPattern(pattern, Math.Min(intensity, 6));
             Console.Out.WriteLineAsync($"Playing light pattern \"{lightPattern.Name}\", Id:{lightPattern.Id}");
-            _sirenOfShameDevice.PlayLightPattern(lightPattern, durationInSeconds > 0 ?  TimeSpan.FromSeconds(durationInSeconds) : null);
-            
-            Console.Out.WriteLineAsync($"Led mode: {_deviceInfo.LedMode}, duration: {_deviceInfo.LedPlayDuration}");
-            Console.Out.WriteLineAsync($"Audio mode: {_deviceInfo.AudioMode}, duration: {_deviceInfo.AudioPlayDuration}");
+            _sirenOfShameDevice.PlayLightPattern(lightPattern, durationInSeconds > 0 ?  TimeSpan.FromSeconds(durationInSeconds) : null).Wait();
         }
 
-        private LedPattern GetLightPattern(LightPattern pattern, uint intensity = 0) =>
+        private LedPattern GetLedPattern(LightSignal pattern, uint intensity = 0) =>
             pattern switch
             {
-                LightPattern.SOS => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 2),
-                LightPattern.SlowPulse => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 3 + intensity),
-                LightPattern.Pulse => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 10 + intensity),
-                LightPattern.Chase => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 17 + intensity),
-                LightPattern.DarkChase => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 24 + intensity),
-                LightPattern.FadeChase => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 31 + intensity),
-                LightPattern.RandomFades => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 38 + intensity),
-                LightPattern.Random => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 45 + intensity),
-                LightPattern.JarringFlash => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 52 + intensity),
-                LightPattern.Dim => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 59 + intensity),
-                LightPattern.MaxByte => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 66 + intensity),
+                LightSignal.SOS => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 2),
+                LightSignal.SlowPulse => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 3 + intensity),
+                LightSignal.Pulse => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 10 + intensity),
+                LightSignal.Chase => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 17 + intensity),
+                LightSignal.DarkChase => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 24 + intensity),
+                LightSignal.FadeChase => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 31 + intensity),
+                LightSignal.RandomFades => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 38 + intensity),
+                LightSignal.Random => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 45 + intensity),
+                LightSignal.JarringFlash => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 52 + intensity),
+                LightSignal.Dim => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 59 + intensity),
+                LightSignal.MaxByte => _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=>x.Id == 66 + intensity),
                 _ =>  _sirenOfShameDevice.LedPatterns.FirstOrDefault(x=> x.Id == 1) // Off
+            };
+
+        private static LightPattern GetLightPattern(LedPattern pattern) =>
+            pattern.Id switch
+            {
+                2 => new LightPattern(pattern.Id, LightSignal.SOS, 0),
+                >= 3 and <= 3+6 => new LightPattern(pattern.Id, LightSignal.SlowPulse, pattern.Id - 3),
+                >= 10 and <= 10+6 => new LightPattern(pattern.Id, LightSignal.Pulse, pattern.Id - 10),
+                >= 17 and <= 17+6 => new LightPattern(pattern.Id, LightSignal.Chase, pattern.Id - 17),
+                >= 24 and <= 24+6 => new LightPattern(pattern.Id, LightSignal.DarkChase, pattern.Id - 24),
+                >= 31 and <= 31+6 => new LightPattern(pattern.Id, LightSignal.FadeChase, pattern.Id - 31),
+                >= 38 and <= 38+6 => new LightPattern(pattern.Id, LightSignal.RandomFades, pattern.Id - 38),
+                >= 45 and <= 45+6 => new LightPattern(pattern.Id, LightSignal.Random, pattern.Id - 45),
+                >= 52 and <= 52+6 => new LightPattern(pattern.Id, LightSignal.JarringFlash, pattern.Id - 52),
+                >= 59 and <= 59+6 => new LightPattern(pattern.Id, LightSignal.Dim, pattern.Id - 59),
+                >= 66 and <= 66+6 => new LightPattern(pattern.Id, LightSignal.MaxByte, pattern.Id - 66),
+                _ => new LightPattern(pattern.Id, LightSignal.Off, 0)
             };
         
         public void StopLight()
         {
-            var p = GetLightPattern(LightPattern.Off);
+            var p = GetLedPattern(LightSignal.Off);
             _sirenOfShameDevice.PlayLightPattern(p, null).Wait();
         }
 
-        private async void SirenOfShameDeviceOnConnected(object? sender, EventArgs e)
-        {
-            _deviceInfo = await _sirenOfShameDevice.ReadDeviceInfo();
-
-            await Console.Out.WriteLineAsync("Siren of Shame have connected.");
-
-            foreach (var pattern in _sirenOfShameDevice.LedPatterns)
-            {
-               // await System.Console.Out.WriteLineAsync($"Pattern \"{pattern.Name}\", Id:{pattern.Id}");
-            }
-        }
-
-        private void SirenOfShameDeviceOnDisconnected(object? sender, EventArgs e)
-        {
-            Console.Out.WriteLine("Siren of shame have disconnected");
-        }
+        private async void SirenOfShameDeviceOnConnected(object? sender, EventArgs e) => Connected?.Invoke(this, EventArgs.Empty);
+        private void SirenOfShameDeviceOnDisconnected(object? sender, EventArgs e) => Disconnected?.Invoke(this, EventArgs.Empty);
     }
     
-    public record SirenStatus(string LightModeId, string LightModeName, uint LightDuration);
+    public record LightPattern(int Id, LightSignal Signal, int Duration);
 }

@@ -1,6 +1,6 @@
 ﻿namespace SirenOfShameApi
 {
-    public enum LightPattern
+    public enum LightSignal
     {
         Off, SOS, SlowPulse, Pulse, Chase, DarkChase, FadeChase, RandomFades, Random, JarringFlash, Dim, MaxByte
     }
